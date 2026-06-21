@@ -29,7 +29,6 @@ public class ParkingService {
     @Transactional
     public ParkingTicket checkIn(String licensePlate, VehicleType vehicleType) {
 
-        // Step 1: Find or create the vehicle
         Vehicle vehicle = vehicleRepository.findByLicensePlate(licensePlate)
                 .orElseGet(() -> {
                     Vehicle newVehicle = new Vehicle();
@@ -38,9 +37,8 @@ public class ParkingService {
                     return vehicleRepository.save(newVehicle);
                 });
 
-        // Step 2: Find an available spot for this vehicle type
         List<ParkingSpot> availableSpots =
-                parkingSpotRepository.findByVehicleTypeAndIsAvailableTrue(vehicleType);
+                parkingSpotRepository.findAvailableSpotsForUpdate(vehicleType);
 
         if (availableSpots.isEmpty()) {
             throw new NoSpotAvailableException(
@@ -48,12 +46,9 @@ public class ParkingService {
         }
 
         ParkingSpot spot = availableSpots.get(0);
-
-        // Step 3: Mark spot as occupied
         spot.setAvailable(false);
         parkingSpotRepository.save(spot);
 
-        // Step 4: Create the ticket
         ParkingTicket ticket = new ParkingTicket();
         ticket.setVehicle(vehicle);
         ticket.setParkingSpot(spot);
@@ -65,26 +60,21 @@ public class ParkingService {
     @Transactional
     public ParkingTicket checkOut(String licensePlate) {
 
-        // Step 1: Find the vehicle
         Vehicle vehicle = vehicleRepository.findByLicensePlate(licensePlate)
                 .orElseThrow(() -> new TicketNotFoundException(
                         "No vehicle found with license plate: " + licensePlate));
 
-        // Step 2: Find their active (open) ticket
         ParkingTicket ticket = parkingTicketRepository
                 .findByVehicle_VehicleIdAndExitTimeIsNull(vehicle.getVehicleId())
                 .orElseThrow(() -> new TicketNotFoundException(
                         "No active ticket found for vehicle: " + licensePlate));
 
-        // Step 3: Set exit time
         LocalDateTime exitTime = LocalDateTime.now();
         ticket.setExitTime(exitTime);
 
-        // Step 4: Calculate fare
         BigDecimal fare = calculateFare(ticket.getEntryTime(), exitTime, vehicle.getVehicleType());
         ticket.setFare(fare);
 
-        // Step 5: Free up the spot
         ParkingSpot spot = ticket.getParkingSpot();
         spot.setAvailable(true);
         parkingSpotRepository.save(spot);
@@ -92,10 +82,14 @@ public class ParkingService {
         return parkingTicketRepository.save(ticket);
     }
 
+    public long getAvailableSpotCount(VehicleType vehicleType) {
+        return parkingSpotRepository.findByVehicleTypeAndIsAvailableTrue(vehicleType).size();
+    }
+
     private BigDecimal calculateFare(LocalDateTime entryTime, LocalDateTime exitTime, VehicleType vehicleType) {
         long minutes = Duration.between(entryTime, exitTime).toMinutes();
-        long hours = (long) Math.ceil(minutes / 60.0); // round up partial hour
-        if (hours == 0) hours = 1; // minimum 1 hour charge
+        long hours = (long) Math.ceil(minutes / 60.0);
+        if (hours == 0) hours = 1;
 
         BigDecimal ratePerHour = switch (vehicleType) {
             case BIKE -> BigDecimal.valueOf(10);
@@ -104,5 +98,11 @@ public class ParkingService {
         };
 
         return ratePerHour.multiply(BigDecimal.valueOf(hours));
+    }
+    public ParkingSpot createSpot(VehicleType vehicleType) {
+        ParkingSpot spot = new ParkingSpot();
+        spot.setVehicleType(vehicleType);
+        spot.setAvailable(true);
+        return parkingSpotRepository.save(spot);
     }
 }
