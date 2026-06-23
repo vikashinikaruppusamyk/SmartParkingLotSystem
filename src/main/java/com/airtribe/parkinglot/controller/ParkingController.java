@@ -6,6 +6,7 @@ import com.airtribe.parkinglot.entity.ParkingSpot;
 import com.airtribe.parkinglot.entity.ParkingTicket;
 import com.airtribe.parkinglot.enums.VehicleType;
 import com.airtribe.parkinglot.service.ParkingService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +26,7 @@ public class ParkingController {
     }
 
     @PostMapping("/checkin")
-    public ResponseEntity<ParkingTicket> checkIn(@RequestBody CheckInRequest request) {
+    public ResponseEntity<ParkingTicket> checkIn(@Valid @RequestBody CheckInRequest request) {
         ParkingTicket ticket = parkingService.checkIn(
                 request.getLicensePlate(),
                 request.getVehicleType());
@@ -33,7 +34,7 @@ public class ParkingController {
     }
 
     @PostMapping("/checkout")
-    public ResponseEntity<ParkingTicket> checkOut(@RequestBody CheckOutRequest request) {
+    public ResponseEntity<ParkingTicket> checkOut(@Valid @RequestBody CheckOutRequest request) {
         ParkingTicket ticket = parkingService.checkOut(request.getLicensePlate());
         return new ResponseEntity<>(ticket, HttpStatus.OK);
     }
